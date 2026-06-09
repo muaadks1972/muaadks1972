@@ -283,26 +283,56 @@ async def all_activities(
 
 
 @api_router.get("/admin/analytics")
-async def admin_analytics(months: int = 6, admin: dict = Depends(require_admin)):
-    """Aggregated analytics for the last N months (default 6)."""
+async def admin_analytics(
+    months: int = 6,
+    exclude_admin: bool = False,
+    admin: dict = Depends(require_admin),
+):
+    """Aggregated analytics for the last N months (default 6).
+    If exclude_admin is true, activities created by admin users are excluded."""
     months = max(1, min(months, 24))
     today = datetime.now(timezone.utc).date()
+
     # start = first day of month, (months-1) months back
-    year = today.year
-    month0 = today.month - (months - 1)
-    while month0 <= 0:
-        month0 += 12
-        year -= 1
-    start = datetime(year, month0, 1).date()
+    def shift_month(y: int, m: int, delta: int):
+        m2 = m + delta
+        while m2 <= 0:
+            m2 += 12
+            y -= 1
+        while m2 > 12:
+            m2 -= 12
+            y += 1
+        return y, m2
+
+    cur_y, cur_m = shift_month(today.year, today.month, -(months - 1))
+    start = datetime(cur_y, cur_m, 1).date()
     start_str = start.isoformat()
     end_str = today.isoformat()
 
-    cursor = db.activities.find(
-        {"date": {"$gte": start_str, "$lte": end_str}}, {"_id": 0}
-    )
-    items = await cursor.to_list(20000)
+    # Previous comparable window: months back of equal length, ending the day before `start`.
+    prev_end = start - timedelta(days=1)
+    prev_y, prev_m = shift_month(cur_y, cur_m, -months)
+    prev_start = datetime(prev_y, prev_m, 1).date()
 
-    # by department
+    # Admin user ids (for exclude_admin)
+    admin_ids: set = set()
+    if exclude_admin:
+        async for u in db.users.find({"role": "admin"}, {"_id": 0, "id": 1}):
+            admin_ids.add(u["id"])
+
+    base_query: dict = {}
+    if admin_ids:
+        base_query["user_id"] = {"$nin": list(admin_ids)}
+
+    # Current window
+    cur_q = {**base_query, "date": {"$gte": start_str, "$lte": end_str}}
+    items = await db.activities.find(cur_q, {"_id": 0}).to_list(20000)
+
+    # Previous window
+    prev_q = {**base_query, "date": {"$gte": prev_start.isoformat(), "$lte": prev_end.isoformat()}}
+    prev_items = await db.activities.find(prev_q, {"_id": 0}).to_list(20000)
+
+    # by department (current)
     by_dept: dict = {d: 0 for d in ALLOWED_DEPARTMENTS}
     for a in items:
         by_dept[a["department"]] = by_dept.get(a["department"], 0) + 1
@@ -312,7 +342,7 @@ async def admin_analytics(months: int = 6, admin: dict = Depends(require_admin))
         if c > 0
     ]
 
-    # by employee
+    # by employee (current)
     by_emp: dict = {}
     for a in items:
         uid = a["user_id"]
@@ -326,19 +356,14 @@ async def admin_analytics(months: int = 6, admin: dict = Depends(require_admin))
         by_emp[uid]["count"] += 1
     by_employee = sorted(by_emp.values(), key=lambda x: -x["count"])
 
-    # by month YYYY-MM
+    # by month YYYY-MM (current window)
     months_list: List[str] = []
     yy, mm = start.year, start.month
     cur = datetime(yy, mm, 1).date()
     while cur <= today:
         months_list.append(f"{cur.year:04d}-{cur.month:02d}")
-        nm = cur.month + 1
-        ny = cur.year
-        if nm > 12:
-            nm = 1
-            ny += 1
+        ny, nm = shift_month(cur.year, cur.month, 1)
         cur = datetime(ny, nm, 1).date()
-
     counts_by_month: dict = {m: 0 for m in months_list}
     for a in items:
         key = a["date"][:7] if len(a["date"]) >= 7 else ""
@@ -346,15 +371,47 @@ async def admin_analytics(months: int = 6, admin: dict = Depends(require_admin))
             counts_by_month[key] += 1
     by_month = [{"month": m, "count": counts_by_month[m]} for m in months_list]
 
+    # totals (current)
     departments_active = len([d for d in by_dept.values() if d > 0])
+    totals = {
+        "activities": len(items),
+        "employees": len(by_emp),
+        "departments_active": departments_active,
+    }
+
+    # totals (previous window)
+    prev_by_dept: dict = {}
+    prev_by_emp: set = set()
+    for a in prev_items:
+        prev_by_dept[a["department"]] = prev_by_dept.get(a["department"], 0) + 1
+        prev_by_emp.add(a["user_id"])
+    previous_totals = {
+        "activities": len(prev_items),
+        "employees": len(prev_by_emp),
+        "departments_active": len(prev_by_dept),
+    }
+
+    def pct(current: int, previous: int) -> Optional[float]:
+        if previous == 0:
+            return None if current == 0 else 100.0
+        return round(((current - previous) / previous) * 100.0, 1)
+
+    deltas = {
+        "activities": pct(totals["activities"], previous_totals["activities"]),
+        "employees": pct(totals["employees"], previous_totals["employees"]),
+        "departments_active": pct(totals["departments_active"], previous_totals["departments_active"]),
+    }
 
     return {
         "period": {"start": start_str, "end": end_str, "months": months},
-        "totals": {
-            "activities": len(items),
-            "employees": len(by_emp),
-            "departments_active": departments_active,
+        "previous_period": {
+            "start": prev_start.isoformat(),
+            "end": prev_end.isoformat(),
         },
+        "exclude_admin": exclude_admin,
+        "totals": totals,
+        "previous_totals": previous_totals,
+        "deltas": deltas,
         "by_department": by_department,
         "by_employee": by_employee,
         "by_month": by_month,

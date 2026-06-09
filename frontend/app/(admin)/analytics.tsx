@@ -7,10 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { useAuth } from "@/src/auth/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { colors, radii, spacing } from "@/src/theme/colors";
@@ -18,9 +21,15 @@ import { colors, radii, spacing } from "@/src/theme/colors";
 type DeptRow = { department: string; count: number };
 type EmpRow = { user_id: string; employee_name: string; username: string; count: number };
 type MonthRow = { month: string; count: number };
+type Totals = { activities: number; employees: number; departments_active: number };
+type Deltas = { activities: number | null; employees: number | null; departments_active: number | null };
 type Analytics = {
   period: { start: string; end: string; months: number };
-  totals: { activities: number; employees: number; departments_active: number };
+  previous_period: { start: string; end: string };
+  exclude_admin: boolean;
+  totals: Totals;
+  previous_totals: Totals;
+  deltas: Deltas;
   by_department: DeptRow[];
   by_employee: EmpRow[];
   by_month: MonthRow[];
@@ -43,17 +52,40 @@ function monthLabel(ym: string): string {
   return `${AR_MONTHS[idx] || m} ${y.slice(2)}`;
 }
 
+function escapeHtml(s: string): string {
+  return (s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function deltaText(d: number | null): string {
+  if (d === null) return "—";
+  const sign = d > 0 ? "+" : "";
+  return `${sign}${d}%`;
+}
+
+function deltaColor(d: number | null): string {
+  if (d === null || d === 0) return colors.textSecondary;
+  return d > 0 ? colors.success : colors.danger;
+}
+
 export default function AnalyticsScreen() {
   const { apiFetch } = useAuth();
   const toast = useToast();
   const [months, setMonths] = useState(6);
+  const [excludeAdmin, setExcludeAdmin] = useState(false);
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/admin/analytics?months=${months}`);
+      const res = await apiFetch(
+        `/api/admin/analytics?months=${months}&exclude_admin=${excludeAdmin}`
+      );
       if (res.ok) {
         setData(await res.json());
       } else {
@@ -62,7 +94,7 @@ export default function AnalyticsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [apiFetch, months, toast]);
+  }, [apiFetch, months, excludeAdmin, toast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,6 +105,142 @@ export default function AnalyticsScreen() {
   const maxDept = Math.max(1, ...(data?.by_department.map((d) => d.count) || [1]));
   const maxEmp = Math.max(1, ...(data?.by_employee.map((e) => e.count) || [1]));
   const maxMonth = Math.max(1, ...(data?.by_month.map((m) => m.count) || [1]));
+
+  const buildHtml = (r: Analytics): string => {
+    const deptRows = r.by_department
+      .map(
+        (d, idx) => `
+        <tr>
+          <td style="text-align:center">${idx + 1}${idx === 0 ? " 🏆" : ""}</td>
+          <td>${escapeHtml(d.department)}</td>
+          <td style="text-align:center">${d.count}</td>
+          <td style="text-align:center">${Math.round((d.count / r.totals.activities) * 100) || 0}%</td>
+        </tr>`
+      )
+      .join("");
+
+    const empRows = r.by_employee
+      .map(
+        (e, idx) => `
+        <tr>
+          <td style="text-align:center">${idx + 1}</td>
+          <td>${escapeHtml(e.employee_name)}</td>
+          <td>@${escapeHtml(e.username)}</td>
+          <td style="text-align:center">${e.count}</td>
+        </tr>`
+      )
+      .join("");
+
+    const monthRows = r.by_month
+      .map(
+        (m) => `
+        <tr>
+          <td>${escapeHtml(monthLabel(m.month))}</td>
+          <td style="text-align:center">${m.count}</td>
+        </tr>`
+      )
+      .join("");
+
+    const deltaBlock = (label: string, cur: number, prev: number, delta: number | null) => {
+      const color = delta === null || delta === 0 ? "#64748B" : delta > 0 ? "#10B981" : "#EF4444";
+      const sign = delta !== null && delta > 0 ? "+" : "";
+      const arrow = delta === null ? "" : delta > 0 ? "▲" : delta < 0 ? "▼" : "■";
+      return `
+        <div class="kpi">
+          <div class="kpi-label">${label}</div>
+          <div class="kpi-num">${cur}</div>
+          <div class="kpi-delta" style="color:${color}">${arrow} ${delta === null ? "—" : sign + delta + "%"} <span style="color:#94A3B8;font-size:11px"> مقارنة بـ ${prev}</span></div>
+        </div>`;
+    };
+
+    return `
+      <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; direction: rtl; padding: 28px; color: #0F172A; }
+          .header { text-align: center; border-bottom: 3px solid #0A2540; padding-bottom: 14px; margin-bottom: 22px; }
+          .header h1 { color: #0A2540; font-size: 22px; margin: 0; }
+          .header h2 { color: #0EA5E9; font-size: 15px; margin: 6px 0 0; font-weight: normal; }
+          .meta { background: #F1F5F9; padding: 10px 16px; border-radius: 8px; margin-bottom: 18px; font-size: 13px; color: #475569; display:flex; justify-content:space-between; }
+          .kpis { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 26px; }
+          .kpi { flex: 1; background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; text-align: center; }
+          .kpi-label { color: #64748B; font-size: 12px; margin-bottom: 6px; }
+          .kpi-num { font-size: 28px; font-weight: bold; color: #0A2540; }
+          .kpi-delta { font-size: 13px; font-weight: bold; margin-top: 4px; }
+          section { margin-bottom: 24px; page-break-inside: avoid; }
+          h3 { color: #0A2540; border-right: 4px solid #F59E0B; padding-right: 10px; margin-bottom: 8px; font-size: 16px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #E2E8F0; padding: 7px; text-align: right; font-size: 13px; }
+          th { background: #0A2540; color: #fff; font-weight: bold; }
+          tr:nth-child(even) { background: #F8FAFC; }
+          .footer { text-align: center; margin-top: 24px; padding-top: 10px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 11px; }
+          .badge { display:inline-block; background:#F59E0B; color:#fff; padding:2px 8px; border-radius:999px; font-size:11px; margin-right:6px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>الشركة العامة لخدمات الملاحة الجوية</h1>
+          <h2>التقرير الإداري الشهري — إحصائيات الصيانة</h2>
+        </div>
+
+        <div class="meta">
+          <div>الفترة الحالية: ${r.period.start} → ${r.period.end} (${r.period.months} شهر)</div>
+          <div>${r.exclude_admin ? '<span class="badge">بدون المدير</span>' : ""}الفترة السابقة: ${r.previous_period.start} → ${r.previous_period.end}</div>
+        </div>
+
+        <div class="kpis">
+          ${deltaBlock("إجمالي الأنشطة", r.totals.activities, r.previous_totals.activities, r.deltas.activities)}
+          ${deltaBlock("الموظفون النشطون", r.totals.employees, r.previous_totals.employees, r.deltas.employees)}
+          ${deltaBlock("الأقسام المغطاة", r.totals.departments_active, r.previous_totals.departments_active, r.deltas.departments_active)}
+        </div>
+
+        <section>
+          <h3>الأقسام الأكثر صيانة</h3>
+          <table>
+            <thead><tr><th style="width:50px">#</th><th>القسم</th><th style="width:80px">العدد</th><th style="width:80px">النسبة</th></tr></thead>
+            <tbody>${deptRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8">لا توجد بيانات</td></tr>'}</tbody>
+          </table>
+        </section>
+
+        <section>
+          <h3>إنتاجية الموظفين</h3>
+          <table>
+            <thead><tr><th style="width:50px">المرتبة</th><th>الاسم</th><th>اسم المستخدم</th><th style="width:80px">عدد الأنشطة</th></tr></thead>
+            <tbody>${empRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8">لا توجد بيانات</td></tr>'}</tbody>
+          </table>
+        </section>
+
+        <section>
+          <h3>الاتجاه الشهري</h3>
+          <table>
+            <thead><tr><th>الشهر</th><th style="width:120px">عدد الأنشطة</th></tr></thead>
+            <tbody>${monthRows}</tbody>
+          </table>
+        </section>
+
+        <div class="footer">تم إنشاء التقرير في ${new Date().toLocaleString("ar-IQ")}</div>
+      </body>
+      </html>`;
+  };
+
+  const onExportPdf = async () => {
+    if (!data) return;
+    setExporting(true);
+    try {
+      const { uri } = await Print.printToFileAsync({ html: buildHtml(data) });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, { UTI: ".pdf", mimeType: "application/pdf" });
+      } else {
+        toast.show("تم إنشاء الملف لكن المشاركة غير متاحة", "info");
+      }
+    } catch (e: any) {
+      toast.show(e?.message || "فشل التصدير", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -104,30 +272,81 @@ export default function AnalyticsScreen() {
           })}
         </View>
 
+        {/* Exclude admin toggle */}
+        <View style={styles.toggleCard}>
+          <View style={styles.toggleLeft}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
+            <View>
+              <Text style={styles.toggleLabel}>تجاهل حساب المدير</Text>
+              <Text style={styles.toggleHint}>عرض إنتاجية الموظفين فقط</Text>
+            </View>
+          </View>
+          <Switch
+            testID="exclude-admin-switch"
+            value={excludeAdmin}
+            onValueChange={setExcludeAdmin}
+            trackColor={{ false: "#CBD5E1", true: colors.primary }}
+            thumbColor="#fff"
+          />
+        </View>
+
+        {/* Export button */}
+        {data && (
+          <TouchableOpacity
+            testID="export-analytics-pdf"
+            style={styles.exportBtn}
+            onPress={onExportPdf}
+            disabled={exporting}
+            activeOpacity={0.85}
+          >
+            {exporting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="document-text" size={18} color="#fff" />
+                <Text style={styles.exportText}>تصدير PDF الإداري الشهري</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
         {loading && !data && (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
         )}
 
         {data && (
           <>
-            {/* KPI cards */}
+            {/* KPI cards with comparison */}
             <View style={styles.kpiRow}>
-              <View style={[styles.kpiCard, { backgroundColor: colors.primary }]}>
-                <Ionicons name="construct" size={22} color="#fff" />
-                <Text style={styles.kpiNum}>{data.totals.activities}</Text>
-                <Text style={styles.kpiLabel}>إجمالي الأنشطة</Text>
-              </View>
-              <View style={[styles.kpiCard, { backgroundColor: colors.secondary }]}>
-                <Ionicons name="people" size={22} color="#fff" />
-                <Text style={styles.kpiNum}>{data.totals.employees}</Text>
-                <Text style={styles.kpiLabel}>موظف نشط</Text>
-              </View>
-              <View style={[styles.kpiCard, { backgroundColor: colors.accent }]}>
-                <Ionicons name="business" size={22} color="#fff" />
-                <Text style={styles.kpiNum}>{data.totals.departments_active}</Text>
-                <Text style={styles.kpiLabel}>قسم مغطى</Text>
-              </View>
+              <KpiCard
+                icon="construct"
+                value={data.totals.activities}
+                label="الأنشطة"
+                delta={data.deltas.activities}
+                color={colors.primary}
+                testID="kpi-activities"
+              />
+              <KpiCard
+                icon="people"
+                value={data.totals.employees}
+                label="موظف نشط"
+                delta={data.deltas.employees}
+                color={colors.secondary}
+                testID="kpi-employees"
+              />
+              <KpiCard
+                icon="business"
+                value={data.totals.departments_active}
+                label="قسم مغطى"
+                delta={data.deltas.departments_active}
+                color={colors.accent}
+                testID="kpi-departments"
+              />
             </View>
+
+            <Text style={styles.comparisonHint}>
+              مقارنة بالفترة السابقة: {data.previous_period.start} → {data.previous_period.end}
+            </Text>
 
             {/* Monthly trend */}
             <View style={styles.sectionCard}>
@@ -250,6 +469,36 @@ export default function AnalyticsScreen() {
   );
 }
 
+function KpiCard({
+  icon,
+  value,
+  label,
+  delta,
+  color,
+  testID,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: number;
+  label: string;
+  delta: number | null;
+  color: string;
+  testID: string;
+}) {
+  const arrow = delta === null ? "" : delta > 0 ? "▲" : delta < 0 ? "▼" : "■";
+  return (
+    <View style={[styles.kpiCard, { backgroundColor: color }]} testID={testID}>
+      <Ionicons name={icon} size={20} color="#fff" />
+      <Text style={styles.kpiNum}>{value}</Text>
+      <Text style={styles.kpiLabel}>{label}</Text>
+      <View style={styles.kpiDeltaPill}>
+        <Text style={[styles.kpiDeltaText, { color: deltaColor(delta) }]}>
+          {arrow} {deltaText(delta)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
@@ -267,7 +516,7 @@ const styles = StyleSheet.create({
   periodRow: {
     flexDirection: "row-reverse",
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   periodChip: {
     flex: 1,
@@ -286,16 +535,60 @@ const styles = StyleSheet.create({
   periodText: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
   periodTextActive: { color: "#fff" },
 
-  kpiRow: { flexDirection: "row-reverse", gap: spacing.sm, marginBottom: spacing.md },
+  toggleCard: {
+    flexDirection: "row-reverse",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  toggleLeft: { flexDirection: "row-reverse", alignItems: "center", gap: spacing.sm },
+  toggleLabel: { fontSize: 14, fontWeight: "600", color: colors.textPrimary, textAlign: "right" },
+  toggleHint: { fontSize: 11, color: colors.textSecondary, textAlign: "right" },
+
+  exportBtn: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
+    height: 50,
+    marginBottom: spacing.md,
+  },
+  exportText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+
+  kpiRow: { flexDirection: "row-reverse", gap: spacing.sm, marginBottom: spacing.xs },
   kpiCard: {
     flex: 1,
     borderRadius: radii.lg,
-    padding: spacing.md,
+    padding: spacing.sm,
     alignItems: "center",
-    gap: 4,
+    gap: 2,
   },
-  kpiNum: { color: "#fff", fontSize: 24, fontWeight: "bold" },
+  kpiNum: { color: "#fff", fontSize: 22, fontWeight: "bold" },
   kpiLabel: { color: "rgba(255,255,255,0.9)", fontSize: 11, textAlign: "center" },
+  kpiDeltaPill: {
+    marginTop: 4,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+  },
+  kpiDeltaText: { fontSize: 10, fontWeight: "bold" },
+
+  comparisonHint: {
+    textAlign: "center",
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
 
   sectionCard: {
     backgroundColor: colors.surface,
@@ -318,7 +611,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
 
-  // Trend chart
   trendRow: {
     flexDirection: "row-reverse",
     alignItems: "flex-end",
@@ -337,7 +629,6 @@ const styles = StyleSheet.create({
   trendCount: { fontSize: 11, color: colors.textPrimary, marginBottom: 4, fontWeight: "bold" },
   trendLabel: { fontSize: 10, color: colors.textSecondary, marginTop: 6, textAlign: "center" },
 
-  // Department bars
   barRow: { marginBottom: spacing.sm },
   barTopRow: {
     flexDirection: "row-reverse",
@@ -369,7 +660,6 @@ const styles = StyleSheet.create({
   },
   barFill: { height: "100%", borderRadius: 4 },
 
-  // Employee rows
   empRow: {
     flexDirection: "row-reverse",
     alignItems: "center",

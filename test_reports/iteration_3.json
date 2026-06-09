@@ -1,0 +1,37 @@
+{
+  "summary": "Backend-only testing for extended GET /api/admin/analytics (iteration 3) covering new fields previous_period, previous_totals, deltas, and the exclude_admin query param. Created /app/backend/tests/test_analytics_v2.py with 16 focused tests: (1) shape - all new keys present with correct types and ISO dates; (2) previous_period alignment - prev_end == period.start-1day and prev_start exactly N months before period.start (day=1) verified for months=1,3,6,12 and default; (3) exclude_admin default false includes admin activities (admin's 2 seeded التدقيق entries visible, 'admin' present in by_employee); (4) exclude_admin=true filters by_employee (no admin), by_department (التدقيق contribution drops), and totals; (5) exclude_admin also filters previous_totals (admin activity inserted in prev window of months=1 is correctly excluded); (6) isolated seed (+1 admin +1 employee in current month) shows exclude_admin totals grew by exactly 1 vs default +2; (7) deltas formula: (cur-prev)/prev*100 rounded 1dp, null when both 0, 100.0 when prev=0 cur>0 - all verified against current/previous totals self-consistency; (8) seeded scenario with 3 employee activities current + 1 employee activity at month-3 confirms delta formula and seeded depts visible at months=3 with exclude_admin; (9) no '_id' string in response for params {6}, {6,exclude_admin=true}, {1,exclude_admin=false}, {24,exclude_admin=true}; (10) auth unchanged - 401/403 unauth, 403 non-admin. All 16/16 new tests PASS. Full regression 49/49 PASS (16 v2 + 14 v1 + 19 maintenance) in 12.4s.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_analytics_v2.py",
+    "/app/backend/tests/test_analytics.py",
+    "/app/backend/tests/test_maintenance_api.py",
+    "/app/test_reports/pytest/analytics_v2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "shift_month + previous-window computation is correct: prev_start uses shift_month(cur_y,cur_m,-months) giving exactly N months before period.start; prev_end = start - 1 day. Verified for months=1,3,6,12.",
+    "pct() helper returns None when both 0 and 100.0 when previous=0 and current>0 - matches spec exactly.",
+    "exclude_admin uses set lookup against db.users where role='admin' and applies $nin filter on user_id to BOTH current and previous windows (base_query is spread into both queries). Correct.",
+    "All MongoDB queries project out _id (find(..., {'_id': 0})); no leakage confirmed by string search across 4 parameter combinations.",
+    "Pre-existing minor: deprecated @app.on_event('startup'/'shutdown') still in server.py (flagged iter 1) - not part of this iteration scope.",
+    "Bool query param parsing relies on FastAPI default coercion; tested with both 'true' and 'false' string values - works."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_analytics_v2.py (new pytest suite for extended analytics)"
+  ],
+  "success_rate": {"backend": "100% (16/16 new + 49/49 full regression)", "frontend": "N/A (not requested)"},
+  "seed_data_creation": "Module-scoped fixtures create TEST_anly_c employee + 6 activities: 2 admin (التدقيق current month), 3 employee (التخطيط x2 + الإعلام current month), 1 employee (التخطيط at month-3 for delta tests). Isolated test also briefly adds/deletes +1 admin +1 employee activity for current month and +1 admin activity at month-1 (prev window). All seed data and the employee are deleted via admin token in teardown. No residual data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Analytics v2 (previous_period, previous_totals, deltas, exclude_admin) fully verified on https://maintenance-crew-3.preview.emergentagent.com. Regression suites: /app/backend/tests/test_maintenance_api.py (19), test_analytics.py (14), test_analytics_v2.py (16). When frontend consumes new fields, ensure UI shows delta arrows/percentages correctly handling null (both-zero) and the special 100.0 (prev=0) case. The exclude_admin toggle should be a checkbox/switch on the analytics dashboard with testID e.g. 'analytics-exclude-admin-toggle'.",
+  "rca_of_issue": "N/A - no bugs found."
+}
