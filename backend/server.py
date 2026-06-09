@@ -1,58 +1,330 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import uuid
+import bcrypt
+import jwt
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
-import uuid
-from datetime import datetime
-
+from typing import List, Optional
+from datetime import datetime, timedelta, timezone
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+# MongoDB
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
+# JWT
+JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me-in-production-' + uuid.uuid4().hex)
+JWT_ALGORITHM = 'HS256'
+JWT_EXPIRES_MINUTES = 60 * 24 * 7  # 1 week
+
+ALLOWED_DEPARTMENTS = [
+    "الموارد البشرية", "المالي", "التدقيق", "التخطيط",
+    "مكتب المدير العام", "الفني", "الاتصالات", "الحركة الجوية",
+    "السلامة", "معلومات الطيران", "التدريب", "الجودة",
+    "تمكين المرأة", "الإعلام",
+]
+
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+bearer_scheme = HTTPBearer(auto_error=True)
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+# ---------- Models ----------
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
+
+
+class EmployeeCreate(BaseModel):
+    username: str
+    password: str
+    full_name: str
+
+
+class EmployeeUpdate(BaseModel):
+    full_name: Optional[str] = None
+    password: Optional[str] = None
+
+
+class EmployeePublic(BaseModel):
+    id: str
+    username: str
+    full_name: str
+    role: str
+    created_at: str
+
+
+class ActivityCreate(BaseModel):
+    date: str  # ISO date YYYY-MM-DD
+    nature_of_work: str
+    department: str
+    notes: Optional[str] = ""
+
+
+class Activity(BaseModel):
+    id: str
+    user_id: str
+    employee_name: str
+    username: str
+    date: str
+    nature_of_work: str
+    department: str
+    notes: str
+    created_at: str
+
+
+# ---------- Helpers ----------
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
+
+
+def create_access_token(user_id: str, username: str, role: str) -> str:
+    payload = {
+        "sub": user_id,
+        "username": username,
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRES_MINUTES),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> dict:
+    try:
+        payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="انتهت صلاحية الجلسة")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="رمز غير صالح")
+    user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="المستخدم غير موجود")
+    return user
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="صلاحيات المدير مطلوبة")
+    return user
+
+
+def user_public(u: dict) -> dict:
+    return {
+        "id": u["id"],
+        "username": u["username"],
+        "full_name": u.get("full_name", ""),
+        "role": u["role"],
+        "created_at": u.get("created_at", ""),
+    }
+
+
+# ---------- Routes ----------
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Air Navigation Maintenance API"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+@api_router.get("/departments")
+async def get_departments():
+    return {"departments": ALLOWED_DEPARTMENTS}
 
-# Include the router in the main app
+
+@api_router.post("/auth/login", response_model=TokenResponse)
+async def login(req: LoginRequest):
+    user = await db.users.find_one({"username": req.username}, {"_id": 0})
+    if not user or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة المرور غير صحيحة")
+    token = create_access_token(user["id"], user["username"], user["role"])
+    return TokenResponse(access_token=token, user=user_public(user))
+
+
+@api_router.get("/auth/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    return user_public(user)
+
+
+# ---------- Admin: employees ----------
+@api_router.post("/admin/employees", response_model=EmployeePublic)
+async def create_employee(req: EmployeeCreate, admin: dict = Depends(require_admin)):
+    existing = await db.users.find_one({"username": req.username})
+    if existing:
+        raise HTTPException(status_code=400, detail="اسم المستخدم موجود مسبقًا")
+    new_user = {
+        "id": str(uuid.uuid4()),
+        "username": req.username,
+        "password_hash": hash_password(req.password),
+        "full_name": req.full_name,
+        "role": "employee",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(new_user)
+    return EmployeePublic(**user_public(new_user))
+
+
+@api_router.get("/admin/employees", response_model=List[EmployeePublic])
+async def list_employees(admin: dict = Depends(require_admin)):
+    cursor = db.users.find({"role": "employee"}, {"_id": 0}).sort("created_at", -1)
+    users = await cursor.to_list(1000)
+    return [EmployeePublic(**user_public(u)) for u in users]
+
+
+@api_router.patch("/admin/employees/{employee_id}", response_model=EmployeePublic)
+async def update_employee(employee_id: str, req: EmployeeUpdate, admin: dict = Depends(require_admin)):
+    update_doc = {}
+    if req.full_name is not None:
+        update_doc["full_name"] = req.full_name
+    if req.password:
+        update_doc["password_hash"] = hash_password(req.password)
+    if not update_doc:
+        raise HTTPException(status_code=400, detail="لا يوجد شيء للتحديث")
+    result = await db.users.update_one({"id": employee_id, "role": "employee"}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+    user = await db.users.find_one({"id": employee_id}, {"_id": 0})
+    return EmployeePublic(**user_public(user))
+
+
+@api_router.delete("/admin/employees/{employee_id}")
+async def delete_employee(employee_id: str, admin: dict = Depends(require_admin)):
+    result = await db.users.delete_one({"id": employee_id, "role": "employee"})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+    return {"success": True}
+
+
+# ---------- Activities ----------
+@api_router.post("/activities", response_model=Activity)
+async def create_activity(req: ActivityCreate, user: dict = Depends(get_current_user)):
+    if req.department not in ALLOWED_DEPARTMENTS:
+        raise HTTPException(status_code=400, detail="القسم غير صالح")
+    if not req.nature_of_work.strip():
+        raise HTTPException(status_code=400, detail="طبيعة العمل مطلوبة")
+    activity = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "employee_name": user.get("full_name") or user["username"],
+        "username": user["username"],
+        "date": req.date,
+        "nature_of_work": req.nature_of_work.strip(),
+        "department": req.department,
+        "notes": (req.notes or "").strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.activities.insert_one(activity)
+    activity.pop("_id", None)
+    return Activity(**activity)
+
+
+@api_router.get("/activities/me", response_model=List[Activity])
+async def my_activities(user: dict = Depends(get_current_user)):
+    cursor = db.activities.find({"user_id": user["id"]}, {"_id": 0}).sort("date", -1)
+    items = await cursor.to_list(1000)
+    return [Activity(**i) for i in items]
+
+
+@api_router.delete("/activities/{activity_id}")
+async def delete_my_activity(activity_id: str, user: dict = Depends(get_current_user)):
+    query = {"id": activity_id}
+    if user["role"] != "admin":
+        query["user_id"] = user["id"]
+    result = await db.activities.delete_one(query)
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="النشاط غير موجود")
+    return {"success": True}
+
+
+@api_router.get("/admin/activities", response_model=List[Activity])
+async def all_activities(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    employee_id: Optional[str] = None,
+    department: Optional[str] = None,
+    admin: dict = Depends(require_admin),
+):
+    query: dict = {}
+    if start_date or end_date:
+        date_q: dict = {}
+        if start_date:
+            date_q["$gte"] = start_date
+        if end_date:
+            date_q["$lte"] = end_date
+        query["date"] = date_q
+    if employee_id:
+        query["user_id"] = employee_id
+    if department:
+        query["department"] = department
+    cursor = db.activities.find(query, {"_id": 0}).sort("date", -1)
+    items = await cursor.to_list(5000)
+    return [Activity(**i) for i in items]
+
+
+@api_router.get("/admin/report/weekly")
+async def weekly_report(week_start: Optional[str] = None, admin: dict = Depends(require_admin)):
+    """Returns activities grouped by employee for the week starting on week_start (YYYY-MM-DD).
+    If week_start is omitted, uses the most recent Saturday (Iraq work week)."""
+    if week_start:
+        start = datetime.fromisoformat(week_start).date()
+    else:
+        today = datetime.now(timezone.utc).date()
+        # Saturday=5 in python's weekday() where Mon=0
+        offset = (today.weekday() - 5) % 7
+        start = today - timedelta(days=offset)
+    end = start + timedelta(days=6)
+    start_str = start.isoformat()
+    end_str = end.isoformat()
+
+    cursor = db.activities.find(
+        {"date": {"$gte": start_str, "$lte": end_str}}, {"_id": 0}
+    ).sort("date", 1)
+    items = await cursor.to_list(5000)
+
+    # Group by user
+    groups: dict = {}
+    for a in items:
+        uid = a["user_id"]
+        if uid not in groups:
+            groups[uid] = {
+                "user_id": uid,
+                "employee_name": a["employee_name"],
+                "username": a["username"],
+                "activities": [],
+            }
+        groups[uid]["activities"].append(a)
+
+    return {
+        "week_start": start_str,
+        "week_end": end_str,
+        "total_activities": len(items),
+        "total_employees": len(groups),
+        "groups": list(groups.values()),
+    }
+
+
+# Include router
 app.include_router(api_router)
 
 app.add_middleware(
@@ -63,12 +335,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_event():
+    # Seed default admin
+    admin = await db.users.find_one({"username": "admin"})
+    if not admin:
+        await db.users.insert_one({
+            "id": str(uuid.uuid4()),
+            "username": "admin",
+            "password_hash": hash_password("12345"),
+            "full_name": "المدير العام",
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info("Seeded default admin (admin/12345)")
+    # Indexes
+    await db.users.create_index("username", unique=True)
+    await db.activities.create_index("user_id")
+    await db.activities.create_index("date")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
