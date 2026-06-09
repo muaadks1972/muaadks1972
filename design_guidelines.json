@@ -1,0 +1,112 @@
+{
+  "theme": "Light",
+  "archetype": "Archetype 4 (Swiss & High-Contrast - Authority, clarity)",
+  "domain": "Aviation Government Internal Mobile App",
+  "typography": {
+    "primary_font": "Tajawal",
+    "fallback_font": "System",
+    "headings": {
+      "h1": "text-3xl font-bold tracking-tight (RN: fontSize 32, fontWeight 'bold')",
+      "h2": "text-2xl font-bold (RN: fontSize 24)",
+      "h3": "text-xl font-semibold (RN: fontSize 20)",
+      "h4": "text-lg font-medium (RN: fontSize 18)"
+    },
+    "body": {
+      "default": "text-base (RN: fontSize 16)",
+      "small": "text-sm (RN: fontSize 14)",
+      "labels": "text-xs uppercase tracking-widest (RN: fontSize 12)"
+    },
+    "rules": [
+      "Ensure all Arabic text uses appropriate line heights (minimum 1.5 multiplier).",
+      "Headlines should be bold and authoritative, reflecting the official nature of the government company.",
+      "Never use center alignment for body text. Right-align all text for Arabic (RTL)."
+    ]
+  },
+  "colors": {
+    "primary": "#0A2540",
+    "primary_hover": "#1E3A8A",
+    "secondary": "#0EA5E9",
+    "accent_maintenance": "#F59E0B",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "text_primary": "#0F172A",
+    "text_secondary": "#64748B",
+    "border": "#E2E8F0",
+    "danger": "#EF4444",
+    "success": "#10B981",
+    "rules": [
+      "Use Primary (Deep Navy) for headers, primary CTAs, and active states. It signals stability and authority.",
+      "Use Background (Off-white) for the app screen backdrop and Surface (White) for cards.",
+      "Accent (Gold) is strictly for maintenance highlights, alerts, or key action buttons.",
+      "Ensure high contrast ratios (>4.5:1) for text on colored backgrounds."
+    ]
+  },
+  "layouts": {
+    "spacing": {
+      "base": 4,
+      "small": 8,
+      "medium": 16,
+      "large": 24,
+      "xlarge": 32,
+      "xxlarge": 48
+    },
+    "grid": "Mobile-first vertical stack (flex-col). Use 16px to 24px padding for screen containers.",
+    "rules": [
+      "RTL Critical: Use `paddingStart`, `paddingEnd`, `marginStart`, and `marginEnd` instead of left/right in React Native StyleSheet.",
+      "Touch targets must be at least 44x44px for accessibility on mobile devices.",
+      "Cards should have internal padding of 16px to 24px.",
+      "Utilize SafeAreaView for all main screen containers."
+    ]
+  },
+  "components": {
+    "text_input": "Native TextInput wrapped in a View. Must have `textAlign: 'right'` and right-aligned labels.",
+    "dropdown": "Use standard React Native Picker (@react-native-picker/picker) or a custom Modal with a FlatList for the department selection.",
+    "date_picker": "Use `@react-native-community/datetimepicker`. Display chosen date right-aligned.",
+    "buttons": "Full-width on mobile. Height 48px minimum. Rounded corners (borderRadius: 8). Text centered and bold.",
+    "cards": "White background, borderRadius: 12, subtle border (1px solid #E2E8F0) or slight shadow (elevation: 2 on Android).",
+    "testing": "All interactive and key informational elements MUST include a `testID` attribute (React Native equivalent of data-testid)."
+  },
+  "visual_enhancers": {
+    "shadows": "Subtle ambient shadows. Avoid heavy drop shadows. Rely on borders for structure if shadows are poorly supported.",
+    "borders": "1px solid #E2E8F0 around form inputs and cards.",
+    "radii": "Inputs: 8px. Cards: 12px. Buttons: 8px. Modals: 16px."
+  },
+  "motion": {
+    "transitions": "React Native LayoutAnimation for expanding/collapsing lists or accordions.",
+    "interactions": "Use TouchableOpacity (activeOpacity: 0.7) or Pressable with Android Ripple for immediate visual feedback on buttons."
+  },
+  "accessibility": {
+    "rtl": "Application must explicitly enforce RTL mode: `I18nManager.forceRTL(true)`. Directional icons (like back arrows) must be flipped.",
+    "contrast": "Ensure white text on Deep Navy has > 4.5:1 contrast.",
+    "screen_readers": "Add accessibilityLabel to all icon-only buttons."
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1503379230423-19c53f7e9a33?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwxfHxhdmlhdGlvbiUyMG1haW50ZW5hbmNlfGVufDB8fHx8MTc4MTAyODQ0M3ww&ixlib=rb-4.1.0&q=85",
+        "category": "splash_screen",
+        "description": "Aviation engine close-up. Used for Splash Screen or Login background with a heavy Deep Navy overlay to ensure text legibility."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1612404748636-568ca4155994?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwxfHxibHVlJTIwc2t5JTIwY2xvdWRzJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODEwMjg0NDN8MA&ixlib=rb-4.1.0&q=85",
+        "category": "header_background",
+        "description": "Blue sky clouds. Can be used subtly in the top header section behind the company name."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1485310818226-f01c4269687f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwyfHxhdmlhdGlvbiUyMG1haW50ZW5hbmNlfGVufDB8fHx8MTc4MTAyODQ0M3ww&ixlib=rb-4.1.0&q=85",
+        "category": "activity_empty_state",
+        "description": "Maintenance worker. Can be used in a blended, low-opacity state for 'No Activities Yet' empty states in the Employee view."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "TECH STACK: Expo React Native (NOT web-based React/Tailwind). Translate design guidelines into React Native StyleSheet or NativeWind styling. Use `.js` files instead of `.tsx`.",
+    "RTL CONFIG: Implement RTL properly. Set `I18nManager.allowRTL(true)` and `I18nManager.forceRTL(true)`. Align text to the right (`textAlign: 'right'`).",
+    "COMPANY BRANDING: Prominently feature 'الشركة العامة لخدمات الملاحة الجوية' in the Splash Screen, Login Header, and Dashboard Header.",
+    "DEPARTMENT DROPDOWN: The Maintenance form must include these exact dropdown departments: الموارد البشرية، المالي، التدقيق، التخطيط، مكتب المدير العام، الفني، الاتصالات، الحركة الجوية، السلامة، معلومات الطيران، التدريب، الجودة، تمكين المرأة، الإعلام.",
+    "ROLES & VIEWS: Implement two distinct flows. 1) Employee Flow: fill maintenance forms, view own history. 2) Admin Flow: default credentials `admin` / `12345`, manage users, view all activities, generate/export weekly report.",
+    "PDF REPORTING: For React Native, utilize `expo-print` and `expo-sharing` to generate and share the Admin's Weekly Report as a PDF document.",
+    "ICONS: Use `@expo/vector-icons` (e.g., FontAwesome5, Ionicons) for UI icons. Directional icons must mirror in RTL layout.",
+    "TESTING: Use `testID` property (not `data-testid`) on all inputs, buttons, and critical UI elements for end-to-end testing."
+  ]
+}
