@@ -12,10 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import * as Print from "expo-print";
-import * as Sharing from "expo-sharing";
 import { useAuth } from "@/src/auth/AuthContext";
 import { useToast } from "@/src/components/Toast";
+import { exportOrPrintPdf } from "@/src/utils/pdf";
 import { colors, radii, spacing } from "@/src/theme/colors";
 
 type DeptRow = { department: string; count: number };
@@ -228,13 +227,7 @@ export default function AnalyticsScreen() {
     if (!data) return;
     setExporting(true);
     try {
-      const { uri } = await Print.printToFileAsync({ html: buildHtml(data) });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { UTI: ".pdf", mimeType: "application/pdf" });
-      } else {
-        toast.show("تم إنشاء الملف لكن المشاركة غير متاحة", "info");
-      }
+      await exportOrPrintPdf(buildHtml(data));
     } catch (e: any) {
       toast.show(e?.message || "فشل التصدير", "error");
     } finally {

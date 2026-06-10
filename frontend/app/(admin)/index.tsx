@@ -11,11 +11,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as Print from "expo-print";
-import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "expo-router";
 import { useAuth } from "@/src/auth/AuthContext";
 import { useToast } from "@/src/components/Toast";
+import { exportOrPrintPdf, printPdf } from "@/src/utils/pdf";
 import { colors, radii, spacing } from "@/src/theme/colors";
 
 type Activity = {
@@ -158,13 +157,7 @@ export default function WeeklyReportScreen() {
     if (!report) return;
     setExporting(true);
     try {
-      const { uri } = await Print.printToFileAsync({ html: buildHtml(report) });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { UTI: ".pdf", mimeType: "application/pdf" });
-      } else {
-        toast.show("تم إنشاء الملف لكن المشاركة غير متاحة", "info");
-      }
+      await exportOrPrintPdf(buildHtml(report));
     } catch (e: any) {
       toast.show(e?.message || "فشل التصدير", "error");
     } finally {
@@ -175,7 +168,7 @@ export default function WeeklyReportScreen() {
   const onPrint = async () => {
     if (!report) return;
     try {
-      await Print.printAsync({ html: buildHtml(report) });
+      await printPdf(buildHtml(report));
     } catch (e: any) {
       toast.show(e?.message || "فشل الطباعة", "error");
     }
