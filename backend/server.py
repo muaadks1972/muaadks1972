@@ -326,11 +326,11 @@ async def admin_analytics(
 
     # Current window
     cur_q = {**base_query, "date": {"$gte": start_str, "$lte": end_str}}
-    items = await db.activities.find(cur_q, {"_id": 0}).to_list(20000)
+    items = await db.activities.find(cur_q, {"_id": 0}).to_list(5000)
 
     # Previous window
     prev_q = {**base_query, "date": {"$gte": prev_start.isoformat(), "$lte": prev_end.isoformat()}}
-    prev_items = await db.activities.find(prev_q, {"_id": 0}).to_list(20000)
+    prev_items = await db.activities.find(prev_q, {"_id": 0}).to_list(5000)
 
     # by department (current)
     by_dept: dict = {d: 0 for d in ALLOWED_DEPARTMENTS}
