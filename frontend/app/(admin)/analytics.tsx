@@ -156,31 +156,37 @@ export default function AnalyticsScreen() {
       <html lang="ar" dir="rtl">
       <head>
         <meta charset="utf-8" />
+        <meta name="viewport" content="width=360, initial-scale=1" />
         <style>
-          body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; direction: rtl; padding: 28px; color: #0F172A; }
-          .header { text-align: center; border-bottom: 3px solid #0A2540; padding-bottom: 14px; margin-bottom: 22px; }
-          .header h1 { color: #0A2540; font-size: 22px; margin: 0; }
-          .header h2 { color: #0EA5E9; font-size: 15px; margin: 6px 0 0; font-weight: normal; }
-          .meta { background: #F1F5F9; padding: 10px 16px; border-radius: 8px; margin-bottom: 18px; font-size: 13px; color: #475569; display:flex; justify-content:space-between; }
-          .kpis { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 26px; }
-          .kpi { flex: 1; background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; text-align: center; }
-          .kpi-label { color: #64748B; font-size: 12px; margin-bottom: 6px; }
-          .kpi-num { font-size: 28px; font-weight: bold; color: #0A2540; }
-          .kpi-delta { font-size: 13px; font-weight: bold; margin-top: 4px; }
-          section { margin-bottom: 24px; page-break-inside: avoid; }
-          h3 { color: #0A2540; border-right: 4px solid #F59E0B; padding-right: 10px; margin-bottom: 8px; font-size: 16px; }
+          @page { size: 360pt auto; margin: 0; }
+          html, body { width: 360pt; }
+          body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; direction: rtl; padding: 12px; color: #0F172A; margin: 0; font-size: 11px; }
+          .header { text-align: center; border-bottom: 2px solid #0A2540; padding-bottom: 10px; margin-bottom: 12px; }
+          .header h1 { color: #0A2540; font-size: 14px; margin: 0; line-height: 1.4; }
+          .header h2 { color: #0EA5E9; font-size: 11px; margin: 4px 0 0; font-weight: normal; }
+          .signature { text-align: center; color: #F59E0B; font-weight: bold; font-size: 10px; margin-top: 6px; }
+          .meta { background: #F1F5F9; padding: 8px 10px; border-radius: 6px; margin-bottom: 12px; font-size: 9px; color: #475569; }
+          .meta div { margin-bottom: 4px; }
+          .kpis { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 14px; }
+          .kpi { flex: 1; background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; padding: 8px 4px; text-align: center; }
+          .kpi-label { color: #64748B; font-size: 9px; margin-bottom: 3px; }
+          .kpi-num { font-size: 18px; font-weight: bold; color: #0A2540; }
+          .kpi-delta { font-size: 9px; font-weight: bold; margin-top: 2px; }
+          section { margin-bottom: 14px; page-break-inside: avoid; }
+          h3 { color: #0A2540; border-right: 3px solid #F59E0B; padding-right: 6px; margin-bottom: 6px; font-size: 12px; }
           table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #E2E8F0; padding: 7px; text-align: right; font-size: 13px; }
-          th { background: #0A2540; color: #fff; font-weight: bold; }
+          th, td { border: 1px solid #E2E8F0; padding: 4px; text-align: right; font-size: 9px; word-wrap: break-word; }
+          th { background: #0A2540; color: #fff; font-weight: bold; font-size: 9px; }
           tr:nth-child(even) { background: #F8FAFC; }
-          .footer { text-align: center; margin-top: 24px; padding-top: 10px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 11px; }
-          .badge { display:inline-block; background:#F59E0B; color:#fff; padding:2px 8px; border-radius:999px; font-size:11px; margin-right:6px; }
+          .footer { text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 8px; }
+          .badge { display:inline-block; background:#F59E0B; color:#fff; padding:1px 6px; border-radius:999px; font-size:9px; margin-right:4px; }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>الشركة العامة لخدمات الملاحة الجوية</h1>
           <h2>التقرير الإداري الشهري — إحصائيات الصيانة</h2>
+          <div class="signature">المهندس معاد كاظم</div>
         </div>
 
         <div class="meta">
@@ -189,15 +195,15 @@ export default function AnalyticsScreen() {
         </div>
 
         <div class="kpis">
-          ${deltaBlock("إجمالي الأنشطة", r.totals.activities, r.previous_totals.activities, r.deltas.activities)}
-          ${deltaBlock("الموظفون النشطون", r.totals.employees, r.previous_totals.employees, r.deltas.employees)}
-          ${deltaBlock("الأقسام المغطاة", r.totals.departments_active, r.previous_totals.departments_active, r.deltas.departments_active)}
+          ${deltaBlock("الأنشطة", r.totals.activities, r.previous_totals.activities, r.deltas.activities)}
+          ${deltaBlock("الموظفون", r.totals.employees, r.previous_totals.employees, r.deltas.employees)}
+          ${deltaBlock("الأقسام", r.totals.departments_active, r.previous_totals.departments_active, r.deltas.departments_active)}
         </div>
 
         <section>
           <h3>الأقسام الأكثر صيانة</h3>
           <table>
-            <thead><tr><th style="width:50px">#</th><th>القسم</th><th style="width:80px">العدد</th><th style="width:80px">النسبة</th></tr></thead>
+            <thead><tr><th style="width:30px">#</th><th>القسم</th><th style="width:40px">العدد</th><th style="width:40px">%</th></tr></thead>
             <tbody>${deptRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8">لا توجد بيانات</td></tr>'}</tbody>
           </table>
         </section>
@@ -205,7 +211,7 @@ export default function AnalyticsScreen() {
         <section>
           <h3>إنتاجية الموظفين</h3>
           <table>
-            <thead><tr><th style="width:50px">المرتبة</th><th>الاسم</th><th>اسم المستخدم</th><th style="width:80px">عدد الأنشطة</th></tr></thead>
+            <thead><tr><th style="width:30px">#</th><th>الاسم</th><th>المستخدم</th><th style="width:40px">عدد</th></tr></thead>
             <tbody>${empRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8">لا توجد بيانات</td></tr>'}</tbody>
           </table>
         </section>
@@ -213,7 +219,7 @@ export default function AnalyticsScreen() {
         <section>
           <h3>الاتجاه الشهري</h3>
           <table>
-            <thead><tr><th>الشهر</th><th style="width:120px">عدد الأنشطة</th></tr></thead>
+            <thead><tr><th>الشهر</th><th style="width:80px">عدد الأنشطة</th></tr></thead>
             <tbody>${monthRows}</tbody>
           </table>
         </section>

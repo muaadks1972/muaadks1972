@@ -117,31 +117,37 @@ export default function WeeklyReportScreen() {
       <html lang="ar" dir="rtl">
       <head>
         <meta charset="utf-8" />
+        <meta name="viewport" content="width=360, initial-scale=1" />
         <style>
-          body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; direction: rtl; padding: 32px; color: #0F172A; }
-          .header { text-align: center; border-bottom: 3px solid #0A2540; padding-bottom: 16px; margin-bottom: 24px; }
-          .header h1 { color: #0A2540; font-size: 22px; margin: 0; }
-          .header h2 { color: #0EA5E9; font-size: 16px; margin: 8px 0 0; font-weight: normal; }
-          .meta { display: flex; justify-content: space-around; background: #F1F5F9; padding: 12px; border-radius: 8px; margin-bottom: 24px; }
+          @page { size: 360pt auto; margin: 0; }
+          html, body { width: 360pt; }
+          body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; direction: rtl; padding: 12px; color: #0F172A; margin: 0; font-size: 11px; }
+          .header { text-align: center; border-bottom: 2px solid #0A2540; padding-bottom: 10px; margin-bottom: 12px; }
+          .header h1 { color: #0A2540; font-size: 14px; margin: 0; line-height: 1.4; }
+          .header h2 { color: #0EA5E9; font-size: 11px; margin: 4px 0 0; font-weight: normal; }
+          .header p { margin: 4px 0 0; color: #475569; font-size: 10px; }
+          .meta { display: flex; justify-content: space-around; background: #F1F5F9; padding: 8px; border-radius: 6px; margin-bottom: 14px; }
           .meta div { text-align: center; }
-          .meta .num { font-size: 22px; font-weight: bold; color: #0A2540; }
-          .meta .lbl { font-size: 12px; color: #64748B; }
-          .employee-block { margin-bottom: 28px; page-break-inside: avoid; }
-          h3 { color: #0A2540; border-right: 4px solid #F59E0B; padding-right: 10px; margin-bottom: 8px; }
-          .uname { color: #64748B; font-weight: normal; font-size: 13px; }
+          .meta .num { font-size: 16px; font-weight: bold; color: #0A2540; }
+          .meta .lbl { font-size: 9px; color: #64748B; }
+          .employee-block { margin-bottom: 16px; page-break-inside: avoid; }
+          h3 { color: #0A2540; border-right: 3px solid #F59E0B; padding-right: 6px; margin-bottom: 6px; font-size: 12px; }
+          .uname { color: #64748B; font-weight: normal; font-size: 9px; }
           table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #E2E8F0; padding: 8px; text-align: right; font-size: 13px; }
-          th { background: #0A2540; color: #fff; font-weight: bold; }
+          th, td { border: 1px solid #E2E8F0; padding: 4px; text-align: right; font-size: 9px; word-wrap: break-word; }
+          th { background: #0A2540; color: #fff; font-weight: bold; font-size: 9px; }
           tr:nth-child(even) { background: #F8FAFC; }
-          .footer { text-align: center; margin-top: 30px; padding-top: 12px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 11px; }
-          .empty { text-align: center; padding: 40px; color: #94A3B8; }
+          .footer { text-align: center; margin-top: 16px; padding-top: 8px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 8px; }
+          .signature { text-align: center; color: #F59E0B; font-weight: bold; font-size: 10px; margin-top: 6px; }
+          .empty { text-align: center; padding: 20px; color: #94A3B8; }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>الشركة العامة لخدمات الملاحة الجوية</h1>
           <h2>التقرير الأسبوعي لأنشطة الصيانة</h2>
-          <p style="margin: 8px 0 0; color: #475569;">الفترة: من ${r.week_start} إلى ${r.week_end}</p>
+          <p>الفترة: من ${r.week_start} إلى ${r.week_end}</p>
+          <div class="signature">المهندس معاد كاظم</div>
         </div>
         <div class="meta">
           <div><div class="num">${r.total_activities}</div><div class="lbl">إجمالي الأنشطة</div></div>
