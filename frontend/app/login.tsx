@@ -59,6 +59,7 @@ export default function LoginScreen() {
             </View>
             <Text style={styles.companyName}>الشركة العامة لخدمات الملاحة الجوية</Text>
             <Text style={styles.tagline}>نظام إدارة أنشطة الصيانة</Text>
+            <Text style={styles.engineer}>المهندس معاد كاظم</Text>
           </View>
 
           <View style={styles.card}>
@@ -161,6 +162,20 @@ const styles = StyleSheet.create({
     color: "#CBD5E1",
     fontSize: 14,
     marginTop: 6,
+    textAlign: "center",
+  },
+  engineer: {
+    color: "#F59E0B",
+    fontSize: 13,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(245,158,11,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.4)",
+    fontWeight: "bold",
+    overflow: "hidden",
     textAlign: "center",
   },
   card: {

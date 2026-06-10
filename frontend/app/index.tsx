@@ -23,6 +23,7 @@ export default function Index() {
     <View style={styles.container} testID="splash-screen">
       <Text style={styles.title}>الشركة العامة لخدمات الملاحة الجوية</Text>
       <Text style={styles.subtitle}>نظام إدارة أنشطة الصيانة</Text>
+      <Text style={styles.engineer}>المهندس معاد كاظم</Text>
       <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 24 }} />
     </View>
   );
@@ -48,5 +49,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginTop: 12,
     textAlign: "center",
+  },
+  engineer: {
+    color: "#F59E0B",
+    fontSize: 14,
+    marginTop: 14,
+    textAlign: "center",
+    fontWeight: "bold",
+    letterSpacing: 0.5,
   },
 });
