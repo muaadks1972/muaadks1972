@@ -103,7 +103,7 @@
     "TECH STACK: Expo React Native (NOT web-based React/Tailwind). Translate design guidelines into React Native StyleSheet or NativeWind styling. Use `.js` files instead of `.tsx`.",
     "RTL CONFIG: Implement RTL properly. Set `I18nManager.allowRTL(true)` and `I18nManager.forceRTL(true)`. Align text to the right (`textAlign: 'right'`).",
     "COMPANY BRANDING: Prominently feature 'الشركة العامة لخدمات الملاحة الجوية' in the Splash Screen, Login Header, and Dashboard Header.",
-    "DEPARTMENT DROPDOWN: The Maintenance form must include these exact dropdown departments: الموارد البشرية، المالي، التدقيق، التخطيط، مكتب المدير العام، الفني، الاتصالات، الحركة الجوية، السلامة، معلومات الطيران، التدريب، الجودة، تمكين المرأة، الإعلام.",
+    "DEPARTMENT DROPDOWN: The Maintenance form must include these exact dropdown departments: الموارد البشرية، المالي، التدقيق، التخطيط، مكتب المدير العام، الفني، الاتصالات، الحركة الجوية، السلامة، معلومات الطيران، التدريب، الجودة، تمكين المرأة111، الإعلام.",
     "ROLES & VIEWS: Implement two distinct flows. 1) Employee Flow: fill maintenance forms, view own history. 2) Admin Flow: default credentials `admin` / `12345`, manage users, view all activities, generate/export weekly report.",
     "PDF REPORTING: For React Native, utilize `expo-print` and `expo-sharing` to generate and share the Admin's Weekly Report as a PDF document.",
     "ICONS: Use `@expo/vector-icons` (e.g., FontAwesome5, Ionicons) for UI icons. Directional icons must mirror in RTL layout.",

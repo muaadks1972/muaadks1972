@@ -2,16 +2,14 @@ import { Platform } from "react-native";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
-// Mobile-like page size (points). 1pt = 1/72 inch.
-// 360pt ≈ 5 inches wide (similar to a phone in portrait).
-const MOBILE_PAGE_WIDTH = 360;
-const MOBILE_PAGE_HEIGHT = 800;
+// A4 page size (points). 1pt = 1/72 inch.
+const A4_WIDTH = 595;
+const A4_HEIGHT = 842;
 
 /**
- * Cross-platform PDF export/print using a mobile-sized page.
+ * Cross-platform PDF export/print using A4 page size.
  * - Web: opens browser's native print dialog (user can "Save as PDF").
  * - Native (iOS/Android): generates PDF file then opens share sheet.
- * Falls back to system print dialog if anything fails.
  */
 export async function exportOrPrintPdf(html: string): Promise<void> {
   if (Platform.OS === "web") {
@@ -23,8 +21,8 @@ export async function exportOrPrintPdf(html: string): Promise<void> {
     const { uri } = await Print.printToFileAsync({
       html,
       base64: false,
-      width: MOBILE_PAGE_WIDTH,
-      height: MOBILE_PAGE_HEIGHT,
+      width: A4_WIDTH,
+      height: A4_HEIGHT,
     });
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
@@ -42,17 +40,15 @@ export async function exportOrPrintPdf(html: string): Promise<void> {
   try {
     await Print.printAsync({
       html,
-      width: MOBILE_PAGE_WIDTH,
-      height: MOBILE_PAGE_HEIGHT,
+      width: A4_WIDTH,
+      height: A4_HEIGHT,
     });
   } catch (e: any) {
     throw new Error(e?.message || "فشل تصدير التقرير");
   }
 }
 
-/**
- * Open native system print dialog. On web also routes to browser print.
- */
+/** Native system print dialog. On web routes to browser print. */
 export async function printPdf(html: string): Promise<void> {
   if (Platform.OS === "web") {
     await openWebPrint(html);
@@ -60,14 +56,14 @@ export async function printPdf(html: string): Promise<void> {
   }
   await Print.printAsync({
     html,
-    width: MOBILE_PAGE_WIDTH,
-    height: MOBILE_PAGE_HEIGHT,
+    width: A4_WIDTH,
+    height: A4_HEIGHT,
   });
 }
 
 async function openWebPrint(html: string): Promise<void> {
   if (typeof window === "undefined") return;
-  const w = window.open("", "_blank", "width=420,height=900");
+  const w = window.open("", "_blank", "width=900,height=1000");
   if (!w) {
     throw new Error("الرجاء السماح بفتح النوافذ المنبثقة للمتصفح");
   }
