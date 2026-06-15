@@ -419,17 +419,28 @@ async def admin_analytics(
 
 
 @api_router.get("/admin/report/weekly")
-async def weekly_report(week_start: Optional[str] = None, admin: dict = Depends(require_admin)):
-    """Returns activities grouped by employee for the week starting on week_start (YYYY-MM-DD).
-    If week_start is omitted, uses the most recent Saturday (Iraq work week)."""
+async def weekly_report(
+    week_start: Optional[str] = None,
+    end_date: Optional[str] = None,
+    admin: dict = Depends(require_admin),
+):
+    """Returns activities grouped by employee for a custom period.
+    - week_start: period start (YYYY-MM-DD). Defaults to the most recent Saturday.
+    - end_date: period end (YYYY-MM-DD). Defaults to start + 6 days (one week)."""
     if week_start:
         start = datetime.fromisoformat(week_start).date()
     else:
         today = datetime.now(timezone.utc).date()
-        # Saturday=5 in python's weekday() where Mon=0
         offset = (today.weekday() - 5) % 7
         start = today - timedelta(days=offset)
-    end = start + timedelta(days=6)
+
+    if end_date:
+        end = datetime.fromisoformat(end_date).date()
+        if end < start:
+            raise HTTPException(status_code=400, detail="نهاية الفترة قبل البداية")
+    else:
+        end = start + timedelta(days=6)
+
     start_str = start.isoformat()
     end_str = end.isoformat()
 

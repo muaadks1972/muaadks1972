@@ -61,15 +61,27 @@ export default function WeeklyReportScreen() {
   const { apiFetch } = useAuth();
   const toast = useToast();
   const [weekStart, setWeekStart] = useState<Date>(getLastSaturday());
-  const [showPicker, setShowPicker] = useState(false);
+  const [endDate, setEndDate] = useState<Date>(() => {
+    const d = getLastSaturday();
+    d.setDate(d.getDate() + 6);
+    return d;
+  });
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
+    if (endDate < weekStart) {
+      toast.show("نهاية الفترة قبل البداية", "error");
+      return;
+    }
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/admin/report/weekly?week_start=${formatDate(weekStart)}`);
+      const res = await apiFetch(
+        `/api/admin/report/weekly?week_start=${formatDate(weekStart)}&end_date=${formatDate(endDate)}`
+      );
       if (res.ok) {
         setReport(await res.json());
       } else {
@@ -78,7 +90,7 @@ export default function WeeklyReportScreen() {
     } finally {
       setLoading(false);
     }
-  }, [apiFetch, weekStart, toast]);
+  }, [apiFetch, weekStart, endDate, toast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -142,7 +154,7 @@ export default function WeeklyReportScreen() {
       <body>
         <div class="header">
           <h1>الشركة العامة لخدمات الملاحة الجوية</h1>
-          <h2>التقرير الأسبوعي لأنشطة الصيانة</h2>
+          <h2>تقرير أنشطة الصيانة</h2>
           <p style="margin: 8px 0 0; color: #475569; font-size: 13px;">الفترة: من ${r.week_start} إلى ${r.week_end}</p>
           <div class="signature">المهندس معاد كاظم</div>
         </div>
@@ -180,32 +192,109 @@ export default function WeeklyReportScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>التقرير الأسبوعي</Text>
+        <Text style={styles.headerTitle}>تقرير الفترة</Text>
         <Text style={styles.headerSubtitle}>الشركة العامة لخدمات الملاحة الجوية</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
-          <Text style={styles.label}>بداية الأسبوع (السبت)</Text>
-          <TouchableOpacity
-            testID="week-start-picker"
-            style={styles.dateField}
-            onPress={() => setShowPicker(true)}
-          >
-            <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
-            <Text style={styles.dateText}>{formatDate(weekStart)}</Text>
-          </TouchableOpacity>
-          {showPicker && (
+          <View style={styles.rangeRow}>
+            <View style={styles.rangeCol}>
+              <Text style={styles.label}>من تاريخ</Text>
+              <TouchableOpacity
+                testID="week-start-picker"
+                style={styles.dateField}
+                onPress={() => setShowStartPicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+                <Text style={styles.dateText}>{formatDate(weekStart)}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.rangeCol}>
+              <Text style={styles.label}>إلى تاريخ</Text>
+              <TouchableOpacity
+                testID="end-date-picker"
+                style={styles.dateField}
+                onPress={() => setShowEndPicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+                <Text style={styles.dateText}>{formatDate(endDate)}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {showStartPicker && (
             <DateTimePicker
               value={weekStart}
               mode="date"
               display={Platform.OS === "ios" ? "spinner" : "default"}
               onChange={(_, sel) => {
-                setShowPicker(Platform.OS === "ios");
-                if (sel) setWeekStart(sel);
+                setShowStartPicker(Platform.OS === "ios");
+                if (sel) {
+                  setWeekStart(sel);
+                  if (endDate < sel) {
+                    const newEnd = new Date(sel);
+                    newEnd.setDate(newEnd.getDate() + 6);
+                    setEndDate(newEnd);
+                  }
+                }
               }}
             />
           )}
+          {showEndPicker && (
+            <DateTimePicker
+              value={endDate}
+              mode="date"
+              minimumDate={weekStart}
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(_, sel) => {
+                setShowEndPicker(Platform.OS === "ios");
+                if (sel) setEndDate(sel);
+              }}
+            />
+          )}
+
+          <View style={styles.quickRow}>
+            <TouchableOpacity
+              testID="quick-week"
+              style={styles.quickChip}
+              onPress={() => {
+                const s = getLastSaturday();
+                const e = new Date(s);
+                e.setDate(s.getDate() + 6);
+                setWeekStart(s);
+                setEndDate(e);
+              }}
+            >
+              <Text style={styles.quickText}>الأسبوع الحالي</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="quick-month"
+              style={styles.quickChip}
+              onPress={() => {
+                const today = new Date();
+                const s = new Date(today.getFullYear(), today.getMonth(), 1);
+                setWeekStart(s);
+                setEndDate(today);
+              }}
+            >
+              <Text style={styles.quickText}>هذا الشهر</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="quick-30d"
+              style={styles.quickChip}
+              onPress={() => {
+                const today = new Date();
+                const s = new Date(today);
+                s.setDate(today.getDate() - 29);
+                setWeekStart(s);
+                setEndDate(today);
+              }}
+            >
+              <Text style={styles.quickText}>آخر 30 يوم</Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity testID="load-report-button" style={styles.loadBtn} onPress={load}>
             <Ionicons name="refresh" size={18} color="#fff" />
             <Text style={styles.loadText}>تحديث التقرير</Text>
@@ -330,11 +419,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    height: 48,
+    paddingHorizontal: spacing.sm,
+    height: 46,
     backgroundColor: colors.background,
   },
-  dateText: { flex: 1, fontSize: 15, color: colors.textPrimary, textAlign: "right" },
+  dateText: { flex: 1, fontSize: 14, color: colors.textPrimary, textAlign: "right" },
+  rangeRow: { flexDirection: "row-reverse", gap: spacing.sm },
+  rangeCol: { flex: 1 },
+  quickRow: { flexDirection: "row-reverse", gap: 6, marginTop: spacing.md, flexWrap: "wrap" },
+  quickChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: "#EFF6FF",
+  },
+  quickText: { color: colors.primary, fontSize: 12, fontWeight: "600" },
   loadBtn: {
     flexDirection: "row-reverse",
     alignItems: "center",
