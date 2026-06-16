@@ -26,7 +26,8 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [bootDone, setBootDone] = useState(false);
 
   const apiFetch = useCallback(
     async (path: string, opts: RequestInit = {}) => {
@@ -42,27 +43,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    const safety = setTimeout(() => {
+      if (mounted) {
+        setLoading(false);
+        setBootDone(true);
+      }
+    }, 3500);
+
     (async () => {
       try {
         const saved = await storage.secureGet<string>(TOKEN_KEY, "");
-        if (saved) {
-          const res = await fetch(`${BACKEND}/api/auth/me`, {
-            headers: { Authorization: `Bearer ${saved}` },
-          });
-          if (res.ok) {
-            const u = (await res.json()) as User;
-            setToken(saved);
-            setUser(u);
-          } else {
-            await storage.secureRemove(TOKEN_KEY);
+        if (saved && mounted) {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 3000);
+          try {
+            const res = await fetch(`${BACKEND}/api/auth/me`, {
+              headers: { Authorization: `Bearer ${saved}` },
+              signal: controller.signal,
+            });
+            clearTimeout(t);
+            if (res.ok) {
+              const u = (await res.json()) as User;
+              if (mounted) {
+                setToken(saved);
+                setUser(u);
+              }
+            } else {
+              await storage.secureRemove(TOKEN_KEY);
+            }
+          } catch {
+            // network/timeout — keep user logged out
           }
         }
       } catch {
         // ignore
       } finally {
-        setLoading(false);
+        clearTimeout(safety);
+        if (mounted) {
+          setLoading(false);
+          setBootDone(true);
+        }
       }
     })();
+
+    return () => {
+      mounted = false;
+      clearTimeout(safety);
+    };
   }, []);
 
   const signIn = useCallback(async (username: string, password: string) => {
@@ -88,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ loading, token, user, signIn, signOut, apiFetch }}>
+    <AuthContext.Provider value={{ loading: loading || !bootDone, token, user, signIn, signOut, apiFetch }}>
       {children}
     </AuthContext.Provider>
   );

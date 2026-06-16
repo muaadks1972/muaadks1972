@@ -24,15 +24,22 @@ SplashScreen.preventAutoHideAsync();
 // Silently swallow web-only fontfaceobserver timeout errors so the dev
 // LogBox doesn't cover the UI. The fonts still load; the library just
 // can't detect them within its 6s deadline on slow networks.
-if (typeof window !== "undefined") {
+if (
+  typeof window !== "undefined" &&
+  typeof (window as any).addEventListener === "function"
+) {
   const isFontTimeout = (msg: unknown) =>
     typeof msg === "string" && /ms timeout exceeded/.test(msg);
-  window.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => {
-    const reason: any = e.reason;
-    if (isFontTimeout(reason?.message) || isFontTimeout(reason)) {
-      e.preventDefault();
-    }
-  });
+  try {
+    window.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => {
+      const reason: any = e.reason;
+      if (isFontTimeout(reason?.message) || isFontTimeout(reason)) {
+        e.preventDefault();
+      }
+    });
+  } catch {
+    // not supported in this environment
+  }
 }
 
 export default function RootLayout() {
